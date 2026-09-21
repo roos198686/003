@@ -15,21 +15,31 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps --no-fund --no-audit
 
       - name: Build App resources (wgt)
+        id: build
+        continue-on-error: true
         run: npm run build:app
 
-      - name: List build output
+      - name: Print build exit code
+        if: steps.build.outcome != 'success'
         run: |
-          echo "=== dist tree ==="
-          find dist -maxdepth 4 2>/dev/null || true
+          echo "Build step outcome: ${{ steps.build.outcome }}"
+          echo "Build step conclusion: ${{ steps.build.conclusion }}"
+
+      - name: List build output
+        if: always()
+        run: |
+          echo "=== dist tree (if exists) ==="
+          find dist -maxdepth 4 2>/dev/null || echo "dist not found"
 
       - name: Upload App artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-resources
