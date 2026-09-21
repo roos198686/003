@@ -39,7 +39,7 @@ jobs:
           cd ios-shell
           xcodegen
           ls -la
-          ls -la App.xcodeproj
+          ls -la CupidtideIM.xcodeproj
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -50,7 +50,7 @@ jobs:
         run: |
           cd ios-shell
           xcodebuild \
-            -project App.xcodeproj \
+            -project CupidtideIM.xcodeproj \
             -scheme App \
             -configuration Debug \
             -sdk iphoneos \
