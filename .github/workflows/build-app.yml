@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android:
-    runs-on: windows-latest
+  build-ios:
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,83 +21,68 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-fund --no-audit
 
-      - name: Build wgt resources
-        run: npm run build:app
+      - name: Build H5 resources
+        run: npm run build:h5
 
-      - name: Show dist tree
-        if: always()
+      - name: Copy H5 to iOS bundle resources
         run: |
-          echo "=== dist tree ==="
-          if (Test-Path dist) { Get-ChildItem -Recurse dist | Select-Object FullName | Format-Table -AutoSize } else { echo "no dist" }
+          rm -rf ios-shell/Resources
+          mkdir -p ios-shell/Resources/www
+          cp -r dist/build/h5/* ios-shell/Resources/www/
+          ls ios-shell/Resources/www
 
-      - name: Set DCloud AppID via Node
-        if: ${{ secrets.DCLOUD_APPID != '' }}
-        env:
-          DCLOUD_APPID: ${{ secrets.DCLOUD_APPID }}
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
         run: |
-          node -e "const fs=require('fs');const p='src/manifest.json';const j=fs.readFileSync(p,'utf8').replace(/\"appid\":\s*\"[^\"]*\"/,`\"appid\": \"${process.env.DCLOUD_APPID}\"`);fs.writeFileSync(p,j);console.log('appid set');"
+          cd ios-shell
+          xcodegen
+          ls -la
+          ls -la App.xcodeproj
 
-      - name: Download HBuilderX
-        continue-on-error: true
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build .app (unsigned)
         run: |
-          $url = 'https://download1.dcloud.net.cn/download/HBuilderX.7z'
-          Invoke-WebRequest -Uri $url -OutFile HBuilderX.7z -UseBasicParsing
-          7z x HBuilderX.7z -oC:\HBuilderX -y | Out-Null
-          Get-ChildItem C:\HBuilderX | Select-Object -First 5
-          Test-Path 'C:\HBuilderX\HBuilderX\cli.exe'
+          cd ios-shell
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" | tail -50
 
-      - name: Login DCloud
-        if: ${{ secrets.DCLOUD_USERNAME != '' }}
-        continue-on-error: true
-        env:
-          DCLOUD_USERNAME: ${{ secrets.DCLOUD_USERNAME }}
-          DCLOUD_PASSWORD: ${{ secrets.DCLOUD_PASSWORD }}
+      - name: Pack .app into .ipa
         run: |
-          C:\HBuilderX\HBuilderX\cli.exe user --username $env:DCLOUD_USERNAME --password $env:DCLOUD_PASSWORD
+          cd ios-shell/build/Build/Products/Debug-iphoneos
+          ls -la
+          mkdir -p Payload
+          cp -r App.app Payload/
+          zip -r -y App-unsigned.ipa Payload
+          ls -la App-unsigned.ipa
 
-      - name: Open HBuilderX
-        continue-on-error: true
-        run: |
-          C:\HBuilderX\HBuilderX\cli.exe open
-          Start-Sleep -Seconds 30
-
-      - name: Write pack config
-        run: |
-          $cfg = @{
-            project = (Resolve-Path .).Path + '\src'
-            platform = 'android'
-            iscustom = $false
-            safemode = $false
-            android = @{
-              packagename = 'com.cupidtide.im'
-              androidpacktype = '1'
-              certalias = ''
-              certfile = ''
-              certpassword = ''
-              storePassword = ''
-              channels = ''
-            }
-            isconfusion = $false
-            splashads = $false
-            rpads = $false
-            pushads = $false
-            exchange = $false
-          } | ConvertTo-Json -Depth 5
-          Set-Content -Path pack-config.json -Value $cfg -Encoding UTF8
-          Get-Content pack-config.json
-
-      - name: Run cloud packaging
-        continue-on-error: true
-        run: |
-          C:\HBuilderX\HBuilderX\cli.exe pack --config (Resolve-Path pack-config.json).Path
-
-      - name: Upload build artifacts
+      - name: Upload IPA artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-build-outputs
+          name: app-unsigned-ipa
+          path: ios-shell/build/Build/Products/Debug-iphoneos/App-unsigned.ipa
+          if-no-files-found: warn
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
           path: |
-            dist/build/app
-            dist/dev/app
-            pack-config.json
+            ios-shell/build
           if-no-files-found: warn

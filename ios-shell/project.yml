@@ -1,0 +1,30 @@
+name: CupidtideIM
+options:
+  bundleIdPrefix: com.cupidtide
+  deploymentTarget:
+    iOS: "13.0"
+  createIntermediateGroups: true
+targets:
+  App:
+    type: application
+    platform: iOS
+    sources:
+      - path: App.swift
+    resources:
+      - path: Resources
+        type: folder
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cupidtide.im
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "100"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
+        INFOPLIST_KEY_UIStatusBarStyle: "UIStatusBarStyleDefault"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_ENTITLEMENTS: ""
+        DEVELOPMENT_TEAM: ""
