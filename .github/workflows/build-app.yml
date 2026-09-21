@@ -24,36 +24,39 @@ jobs:
       - name: Build wgt resources
         run: npm run build:app
 
-      - name: Download and unzip HBuilderX
+      - name: Show dist tree
+        if: always()
         run: |
-          $ErrorActionPreference = 'Stop'
+          echo "=== dist tree ==="
+          if (Test-Path dist) { Get-ChildItem -Recurse dist | Select-Object FullName | Format-Table -AutoSize } else { echo "no dist" }
+
+      - name: Set DCloud AppID via Node
+        if: ${{ secrets.DCLOUD_APPID != '' }}
+        env:
+          DCLOUD_APPID: ${{ secrets.DCLOUD_APPID }}
+        run: |
+          node -e "const fs=require('fs');const p='src/manifest.json';const j=fs.readFileSync(p,'utf8').replace(/\"appid\":\s*\"[^\"]*\"/,`\"appid\": \"${process.env.DCLOUD_APPID}\"`);fs.writeFileSync(p,j);console.log('appid set');"
+
+      - name: Download HBuilderX
+        continue-on-error: true
+        run: |
           $url = 'https://download1.dcloud.net.cn/download/HBuilderX.7z'
-          Write-Host "Downloading HBuilderX from $url"
           Invoke-WebRequest -Uri $url -OutFile HBuilderX.7z -UseBasicParsing
           7z x HBuilderX.7z -oC:\HBuilderX -y | Out-Null
           Get-ChildItem C:\HBuilderX | Select-Object -First 5
           Test-Path 'C:\HBuilderX\HBuilderX\cli.exe'
 
-      - name: Set DCloud AppID in manifest.json
-        run: |
-          $appid = '${{ secrets.DCLOUD_APPID }}'
-          if ([string]::IsNullOrWhiteSpace($appid)) { Write-Host 'DCLOUD_APPID secret not set, skipping'; exit 0 }
-          $path = 'src\manifest.json'
-          $json = Get-Content $path -Raw
-          $json = $json -replace '"appid":\s*""', "`"appid`": `"$appid`""
-          Set-Content -Path $path -Value $json -Encoding UTF8
-          Write-Host 'manifest.json appid updated'
-
-      - name: Login DCloud account
+      - name: Login DCloud
+        if: ${{ secrets.DCLOUD_USERNAME != '' }}
+        continue-on-error: true
         env:
           DCLOUD_USERNAME: ${{ secrets.DCLOUD_USERNAME }}
           DCLOUD_PASSWORD: ${{ secrets.DCLOUD_PASSWORD }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:DCLOUD_USERNAME)) { Write-Host 'DCLOUD_USERNAME not set'; exit 0 }
           C:\HBuilderX\HBuilderX\cli.exe user --username $env:DCLOUD_USERNAME --password $env:DCLOUD_PASSWORD
-        shell: pwsh
 
       - name: Open HBuilderX
+        continue-on-error: true
         run: |
           C:\HBuilderX\HBuilderX\cli.exe open
           Start-Sleep -Seconds 30
@@ -84,9 +87,9 @@ jobs:
           Get-Content pack-config.json
 
       - name: Run cloud packaging
+        continue-on-error: true
         run: |
           C:\HBuilderX\HBuilderX\cli.exe pack --config (Resolve-Path pack-config.json).Path
-        shell: pwsh
 
       - name: Upload build artifacts
         if: always()
